@@ -1,0 +1,15 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: cluster-workflow-nmap-template
+spec:
+  entrypoint: nmap-template
+  templates:
+  - name: nmap-template
+    inputs:
+      parameters:
+      - name: url
+    container:
+      image: instrumentisto/nmap
+      command: [nmap, -A, -T4]
+      args: ["{{inputs.parameters.url}}"]
