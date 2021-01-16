@@ -1,14 +1,29 @@
 apiVersion: argoproj.io/v1alpha1
-kind: ClusterWorkflowTemplate
+kind: WorkflowTemplate
 metadata:
-  name: workflow-template-chaos
+  name: template-chaos
 spec:
   entrypoint: chaos-template
+  arguments:
+     parameters:
+       - name: target
+         value: enter target name
   templates:
   - name: chaos-template
     inputs:
       parameters:
+        - name: target
     container:
       image: lotuseatersec/chaos-client
-      command: [chaos]
-      args: ["{{inputs.parameters.arg}}"]
+      command: [chaos, -d, "{{inputs.parameters.target}}", -o, "/tmp/chaos-output.txt"]
+      env:
+        - name: CHAOS_KEY
+          valueFrom:
+             secretKeyRef:
+                name: chaos-key
+                key: chaoskey
+    outputs:
+        artifacts:
+            - name: chaos-output
+              path: /tmp/chaos-output.txt
+
