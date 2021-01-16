@@ -3,27 +3,71 @@ kind: WorkflowTemplate
 metadata:
   name: template-chaos
 spec:
-  entrypoint: chaos-template
+  entrypoint: run-chaos
   arguments:
-     parameters:
-       - name: target
-         value: enter target name
+    parameters:
+      - name: target
+        value: enter target
   templates:
-  - name: chaos-template
-    inputs:
-      parameters:
-        - name: target
-    container:
-      image: lotuseatersec/chaos-client
-      command: [chaos, -d, "{{inputs.parameters.target}}", -o, "/tmp/chaos-output.txt"]
-      env:
-        - name: CHAOS_KEY
-          valueFrom:
-             secretKeyRef:
-                name: chaos-key
-                key: chaoskey
-    outputs:
-        artifacts:
+    - name: run-chaos
+      steps:
+      - - name: run-enumeration
+          template: check-chaos-api-for-domains
+          arguments:
+            parameters:
+            - name: target
+              value: "{{workflow.parameters.target}}"
+            
+      - - name: run-dnsgen
+          template: run-dnsgen-on-domains 
+          arguments:
+            artifacts:
+              - name: chaos-output
+                from: "{{steps.run-enumeration.outputs.artifacts.chaos-output}}" 
+      - - name: run-httpx
+          template: run-httpx-on-dnsgen-output
+          arguments:
+            artifacts:
+              - name: dnsgen-output
+                from: "{{steps.run-dnsgen.outputs.artifacts.dnsgen-output}}"
+
+    - name: check-chaos-api-for-domains
+      inputs:
+        parameters:
+          - name: target
+      container:
+        image: lotuseatersec/chaos-client
+        command: [chaos, -d, "{{inputs.parameters.target}}", -o, "/tmp/chaos-output.txt"]
+        env:
+          - name: CHAOS_KEY
+            valueFrom:
+              secretKeyRef:
+                  name: chaos-key
+                  key: chaoskey
+      outputs:
+          artifacts:
             - name: chaos-output
               path: /tmp/chaos-output.txt
 
+    - name: run-dnsgen-on-domains
+      inputs: 
+        artifacts:
+        - name: chaos-output
+          path: /tmp/output.txt
+      container:
+        image: lotuseatersec/dnsgen
+        command: [sh, -c]
+        args: ["dnsgen /tmp/output.txt | tee -a /tmp/dnsgen-output.txt"]
+      outputs:
+          artifacts:
+            - name: dnsgen-output
+              path: /tmp/dnsgen-output.txt
+    
+    - name: run-httpx-on-dnsgen-output
+      inputs:
+        artifacts:
+        - name: dnsgen-output
+          path: /tmp/dnsgen.txt
+      container:
+        image: lotuseatersec/httpx
+        command: [httpx, -l, "/tmp/dnsgen.txt", -silent]
