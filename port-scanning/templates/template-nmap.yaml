@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: template-nmap
+spec:
+  arguments:
+    parameters:
+      - name: url
+        value: enter url
+  entrypoint: template-nmap
+  templates:
+  - name: template-nmap
+    inputs:
+      parameters:
+      - name: url
+    container:
+      image: instrumentisto/nmap
+      command: [nmap, -p-, -T3, -sTUV]
+      args: ["{{inputs.parameters.url}}"]
