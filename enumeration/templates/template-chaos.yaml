@@ -71,9 +71,8 @@ spec:
           path: /tmp/dnsgen.txt
       container:
         image: projectdiscovery/httpx
-        command: [sh, -c]
-        args: ["httpx -l \"/tmp/dnsgen.txt\" -vhost -follow-redirects -silent -status-code -fc 404,500 -o /tmp/final-output.txt"]
+        command: [sh, -c, 'httpx -l "{{inputs.artifacts.dnsgen-output.path}}" -vhost -follow-redirects -silent -status-code -fc 404,500 -o "{{outputs.artifacts.final-output.path}}"']
       outputs:
         artifacts:
-          - name: final-output
-            path: /tmp/final-output.txt
+          - name: httpx-output
+            path: /output/httpx-output.txt

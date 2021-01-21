@@ -1,0 +1,32 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: template-hakrawler
+spec:
+  entrypoint: run-template-hakrawler
+  arguments:
+    parameters:
+    - name: url
+      value: enter url
+  templates:
+    - name: run-template-hakrawler
+      steps:
+      - - name: run-hakrawler
+          template: run-hakrawler-on-url
+          arguments:
+            parameters:
+            - name: url
+              value: "{{workflow.parameters.url}}"
+            
+    - name: run-hakrawler-on-url
+      inputs:
+        parameters:
+          - name: url
+      container:
+        image: lotuseatersec/hakrawler
+        command: [sh, -c]
+        args: ["hakrawler -url {{inputs.parameters.url}} | tee /tmp/hakrawler-output.txt"]
+      outputs:
+          artifacts:
+            - name: hakrawler-output
+              path: /tmp/hakrawler-output.txt

@@ -1,0 +1,93 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: template-assetfinder
+spec:
+  entrypoint: run-assetfinder
+  arguments:
+    parameters:
+      - name: target
+        value: enter target
+  templates:
+    - name: run-assetfinder
+      steps:
+      - - name: run-finder
+          template: run-assetfinder-on-url
+          arguments:
+            parameters:
+            - name: target
+              value: "{{workflow.parameters.target}}"
+            
+      - - name: run-dnsgen
+          template: run-dnsgen-on-domains 
+          arguments:
+            artifacts:
+              - name: assetfinder-output
+                from: "{{steps.run-finder.outputs.artifacts.assetfinder-output}}" 
+
+      - - name: run-httpx
+          template: run-httpx-on-dnsgen-output
+          arguments:
+            artifacts:
+              - name: dnsgen-output
+                from: "{{steps.run-dnsgen.outputs.artifacts.dnsgen-output}}"
+
+    - name: run-assetfinder-on-url
+      inputs:
+        parameters:
+          - name: target
+      container:
+        image: lotuseatersec/assetfinder
+        command: [sh, -c, 'assetfinder --subs-only "{{inputs.parameters.target}}" | tee "{{outputs.artifacts.assetfinder-output.path}}"']
+        env:
+          - name: FB_APP_ID
+            valueFrom:
+              secretKeyRef:
+                  name: fb-keys
+                  key: app-id
+          - name: FB_APP_SECRET
+            valueFrom:
+              secretKeyRef:
+                  name: fb-keys
+                  key: app-secret
+          - name: VT_API_KEY
+            valueFrom:
+              secretKeyRef:
+                  name: virustotal-keys
+                  key: vt-api-key
+          - name: SPYSE_API_TOKEN
+            valueFrom:
+              secretKeyRef:
+                  name: spyse-keys
+                  key: spyse-api-key
+      outputs:
+          artifacts:
+            - name: assetfinder-output
+              path: /tmp/assetfinder-output.txt
+
+    - name: run-dnsgen-on-domains
+      inputs: 
+        artifacts:
+        - name: assetfinder-output
+          path: /tmp/output.txt
+      container:
+        image: lotuseatersec/dnsgen
+        command: [sh, -c]
+        args: ["dnsgen {{inputs.artifacts.assetfinder-output.path}} | tee -a {{outputs.artifacts.dnsgen-output.path}}"]
+      outputs:
+          artifacts:
+            - name: dnsgen-output
+              path: /tmp/dnsgen-output.txt
+    
+    - name: run-httpx-on-dnsgen-output
+      inputs:
+        artifacts:
+        - name: dnsgen-output
+          path: /tmp/dnsgen.txt
+      container:
+        image: projectdiscovery/httpx
+        command: [sh, -c, 'httpx -l "{{inputs.artifacts.dnsgen-output.path}}" -silent -title -http2 -vhost -cdn -ip -cname -tls-probe -status-code -fc 404,500 -o "{{outputs.artifacts.httpx-output.path}}"']
+      outputs:
+        artifacts:
+          - name: httpx-output
+            path: /tmp/httpx-output.txt

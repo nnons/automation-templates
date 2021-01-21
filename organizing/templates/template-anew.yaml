@@ -1,0 +1,10 @@
+# Setup Kubernetes PVC storage
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: data-dump
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 

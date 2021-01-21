@@ -1,0 +1,74 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: template-waybackurls
+spec:
+  entrypoint: initialize-waybackurls
+  arguments:
+    parameters:
+      - name: url
+        value: enter url
+  templates:
+    - name: initialize-waybackurls
+      steps:
+      - - name: run-assetfinder
+          template: run-assetfinder-on-url
+          arguments:
+            parameters:
+            - name: url
+              value: "{{workflow.parameters.url}}"
+
+      - - name: run-waybackurls
+          template: run-waybackurls-on-assetfinder-output
+          arguments:
+            artifacts:
+              - name: assetfinder-output
+                from: "{{steps.run-assetfinder.outputs.artifacts.assetfinder-output}}"
+
+
+    - name: run-assetfinder-on-url
+      inputs: 
+        parameters:
+          - name: url
+      container:
+        image: lotuseatersec/assetfinder
+        command: [sh, -c]
+        args: ["assetfinder --subs-only \"{{inputs.parameters.url}}\" | tee \"{{outputs.artifacts.assetfinder-output.path}}\""]
+        env:
+          - name: FB_APP_ID
+            valueFrom:
+              secretKeyRef:
+                  name: fb-keys
+                  key: app-id
+          - name: FB_APP_SECRET
+            valueFrom:
+              secretKeyRef:
+                  name: fb-keys
+                  key: app-secret
+          - name: VT_API_KEY
+            valueFrom:
+              secretKeyRef:
+                  name: virustotal-keys
+                  key: vt-api-key
+          - name: SPYSE_API_TOKEN
+            valueFrom:
+              secretKeyRef:
+                  name: spyse-keys
+                  key: spyse-api-key
+      outputs:
+          artifacts:
+            - name: assetfinder-output
+              path: /tmp/assetfinder-output.txt
+    
+    - name: run-waybackurls-on-assetfinder-output
+      inputs:
+        artifacts:
+          - name: assetfinder-output
+            path: /tmp/assetfinder-output.txt
+      container:
+        image: lotuseatersec/waybackurls
+        command: [sh, -c, 'cat "{{inputs.artifacts.assetfinder-output.path}}" | waybackurls | tee "{{outputs.artifacts.waybackurls-output.path}}"']
+      outputs:
+        artifacts:
+          - name: waybackurls-output
+            path: /tmp/waybackurls-output.txt
